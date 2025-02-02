@@ -2,7 +2,7 @@
 - 👀 I’m interested in Javascript
 - 🌱 I’m currently learning Javascript
 - 💞️ I’m looking to collaborate on biological data visualization
-- 📫 How to reach me Ojoolatunji10@gmail.com 
+- 📫 How to reach me Ojoolatunjisamson0@gmail.com 
 - 😄 Pronouns: He/Him
 - ⚡ Fun fact: 
 
