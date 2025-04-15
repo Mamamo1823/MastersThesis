@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KEGG Pathway Visualization</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --wine-primary: #722F37;
+            --wine-secondary: #5A232A;
+            --wine-light: #f9ecea;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+
+        /* Added Tooltip Styles */
+        .conservation-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-size: 0.9em;
+            white-space: nowrap;
+            display: none;
+            z-index: 1000;
+        }
+
+        .custom-notice {
+            color: #666;
+            font-size: 0.9em;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f8f8;
+            border-radius: 4px;
+        }
+
+        #message-container {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .message {
+            padding: 12px 20px;
+            margin: 8px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            opacity: 0.95;
+        }
+
+        .message.error {
+            background-color: #fee;
+            border-left: 4px solid #ff3860;
+            color: #ff3860;
+        }
+
+        .message.success {
+            background-color: #effaf3;
+            border-left: 4px solid #48c774;
+            color: #073015;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .json-pane {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .customization-pane {
+            display: none;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            background: #fff8f6;
+            border: 1px solid var(--wine-primary);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .customization-pane.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .tree-node {
+            margin: 8px 0;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .tree-node:hover {
+            background-color: var(--wine-light);
+        }
+
+        .toggle {
+            color: var(--wine-primary);
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            margin-right: 8px;
+        }
+
+        .toggle:hover {
+            color: var(--wine-secondary);
+            transform: scale(1.1);
+        }
+
+        .children {
+            margin-left: 20px;
+            border-left: 2px solid var(--wine-primary);
+            padding-left: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .children.collapsed {
+            display: none;
+        }
+
+        .pathway-meta {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--wine-primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: var(--wine-secondary);
+            color: white;
+        }
+
+        .btn-success {
+            background-color: #48c774;
+            color: white;
+            text-decoration: none;
+        }
+
+        .btn-remove {
+            background-color: var(--wine-primary);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .color-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .ec-color-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .ec-color-option input[type="color"] {
+            width: 30px;
+            height: 30px;
+            padding: 2px;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        .color-pickers {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .hint {
+            display: block;
+            margin-top: 4px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .output-group {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .gene-node {
+            padding: 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .gene-node:hover {
+            background-color: var(--wine-light);
+        }
+
+        .color-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .gene-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        input:invalid {
+            border-color: var(--wine-primary);
+            box-shadow: 0 0 0 0.125em rgba(114, 47, 55, 0.25);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: var(--wine-primary);
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: var(--wine-secondary);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    
+        .btn-tertiary {
+            background-color: #4a5568;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="message-container"></div>
+
+    <div class="main-container">
+        <div class="json-pane">
+            <h2>KEGG Data</h2>
+            <div id="jsonContainer"></div>
+        </div>
+
+        <div id="customizeInterface" class="customization-pane">
+            <div class="panel-header">
+                <h2>Customization Panel</h2>
+                <button class="close-btn" onclick="toggleCustomPanel()">&times;</button>
+            </div>
+            
+            <div class="custom-notice">
+                Notice: Some K0 categories are stacked into one because they are entries for the same enzyme in different organism
+            </div>
+
+            <div class="form-group">
+                <label for="pathwayInput">Pathway ID:</label>
+                <input type="text" id="pathwayInput" placeholder="map00010" pattern="map\d{5}">
+                <small class="hint">Format: map followed by 5 digits (e.g., map00010)</small>
+            </div>
+
+            <div class="form-group">
+                <label>Selected EC/K Numbers:</label>
+                <div id="colorSelection" class="color-selection"></div>
+            </div>
+
+            <div class="output-group">
+                <label>Generated URL:</label>
+                <input type="text" id="keggUrl" readonly>
+                <a id="keggLink" class="btn btn-success hidden" target="_blank">
+                    <i class="fas fa-external-link-alt"></i> Open in KEGG
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="KEGGAPP.JS"></script>
+</body>
+</html>
